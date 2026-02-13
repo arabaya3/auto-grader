@@ -63,7 +63,6 @@ logging.getLogger("transformers").setLevel(logging.WARNING)
 # Add parent to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.prompt_templates import JUDGE_SYSTEM_PROMPT
-from src.io_schema import JudgeOutput
 
 
 @dataclass
