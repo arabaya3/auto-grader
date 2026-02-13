@@ -1094,20 +1094,41 @@ def split_dataset(
     valid_ratio: float = 0.1,
     seed: int = 42,
 ) -> tuple[list[Example], list[Example], list[Example]]:
-    """Split examples into train/valid/test sets deterministically."""
+    """Split examples into train/valid/test sets with stratified sampling by score."""
     random.seed(seed)
     
-    # Shuffle
-    shuffled = examples.copy()
-    random.shuffle(shuffled)
+    # Group by score for stratified split
+    by_score: dict[int, list[Example]] = {i: [] for i in range(1, 6)}
+    for ex in examples:
+        by_score[ex.label.score].append(ex)
     
-    n = len(shuffled)
-    train_end = int(n * train_ratio)
-    valid_end = train_end + int(n * valid_ratio)
+    train, valid, test = [], [], []
     
-    train = shuffled[:train_end]
-    valid = shuffled[train_end:valid_end]
-    test = shuffled[valid_end:]
+    # Split each score group proportionally
+    for score in range(1, 6):
+        group = by_score[score].copy()
+        random.shuffle(group)
+        
+        n = len(group)
+        train_end = int(n * train_ratio)
+        valid_end = train_end + int(n * valid_ratio)
+        
+        train.extend(group[:train_end])
+        valid.extend(group[train_end:valid_end])
+        test.extend(group[valid_end:])
+    
+    # Shuffle each split
+    random.shuffle(train)
+    random.shuffle(valid)
+    random.shuffle(test)
+    
+    # Report distribution
+    print("Stratified split distribution:")
+    for name, split in [("train", train), ("valid", valid), ("test", test)]:
+        dist = {i: 0 for i in range(1, 6)}
+        for ex in split:
+            dist[ex.label.score] += 1
+        print(f"  {name}: {dict(dist)}")
     
     return train, valid, test
 
