@@ -396,10 +396,18 @@ def build_calibration_dataset(
 
 
 def build_adversarial_dataset(
-    output_path: Path,
+    output_path: Path = None,
     seed: int = 42,
+    # Alias for notebook compatibility
+    output_file: str = None,
 ) -> None:
     """Build the adversarial test dataset."""
+    # Handle alias
+    if output_file is not None:
+        output_path = Path(output_file)
+    if output_path is None:
+        output_path = Path("data/adversarial.jsonl")
+    
     random.seed(seed)
     
     examples = []
