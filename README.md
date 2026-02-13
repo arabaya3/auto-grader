@@ -21,31 +21,43 @@ auto-grader/
 │   ├── prompt_templates.py  # Judge prompt builder with anti-injection
 │   ├── io_schema.py         # JSON schema definition and validator
 │   ├── inference.py         # Model loading and inference + CLI
+│   ├── inference_enhanced.py # Enhanced: confidence, explainability
 │   ├── utils.py             # Reproducibility seeds, logging
 │   ├── data/
 │   │   ├── __init__.py
-│   │   ├── build_dataset.py     # Dataset generation script
-│   │   └── quality_checks.py    # Validation and statistics
+│   │   ├── build_dataset.py         # Dataset generation script
+│   │   ├── build_calibration_dataset.py  # Calibration data (Step 4)
+│   │   └── quality_checks.py        # Validation and statistics
 │   ├── training/
 │   │   ├── __init__.py
-│   │   └── sft_train.py         # QLoRA SFT fine-tuning with TRL
-│   └── eval/
+│   │   ├── sft_train.py             # QLoRA SFT fine-tuning with TRL
+│   │   └── sft_calibration_train.py # Calibration training (Step 4)
+│   ├── eval/
+│   │   ├── __init__.py
+│   │   ├── eval_gold.py             # Gold test evaluation script
+│   │   └── eval_official.py         # Official metrics (Step 4)
+│   └── demo/
 │       ├── __init__.py
-│       └── eval_gold.py         # Gold test evaluation script
+│       └── demo_run.py              # Hackathon demo script
 ├── data/
 │   ├── train.jsonl          # Training split (80%)
 │   ├── valid.jsonl          # Validation split (10%)
 │   ├── test.jsonl           # Test split (10%)
-│   └── gold_tests.jsonl     # 10 curated adversarial test cases
+│   ├── gold_tests.jsonl     # Curated adversarial test cases
+│   ├── calibration.jsonl    # Borderline examples (Step 4)
+│   └── adversarial.jsonl    # Robustness tests (Step 4)
 ├── outputs/
-│   └── judge_sft_lora/      # Fine-tuned LoRA adapters
+│   ├── judge_sft_lora/          # Step 3 fine-tuned adapter
+│   ├── judge_sft_lora_calibrated/ # Step 4 calibrated adapter
+│   └── eval_results/            # Evaluation reports
 ├── tests/
 │   ├── __init__.py
 │   ├── test_schema.py       # JSON validation tests
 │   └── test_prompt_builder.py
 └── notebooks/
-    ├── 01_baseline_inference.ipynb  # Demo notebook
-    └── 02_train_sft_qlora.ipynb     # Training notebook
+    ├── 01_baseline_inference.ipynb      # Demo notebook
+    ├── 02_train_sft_qlora.ipynb         # Training notebook
+    └── 03_calibration_eval_demo.ipynb   # Step 4 notebook
 ```
 
 ## Installation
@@ -342,7 +354,93 @@ python -m src.eval.eval_gold \
 - [x] Training dataset generation
 - [x] Fine-tuning pipeline (QLoRA + TRL)
 - [x] Evaluation benchmarks
-- [ ] Model export for deployment
+- [x] Calibration training (borderline examples)
+- [x] Enhanced inference (confidence, explainability)
+- [x] Hackathon demo script
+- [x] Official evaluation metrics
+
+## Advanced Features (Step 4)
+
+### Confidence Scoring
+
+The enhanced inference module provides confidence scores (0.0-1.0):
+
+```python
+from src.inference_enhanced import EnhancedJudge
+
+judge = EnhancedJudge(adapter_path="outputs/judge_sft_lora/final_adapter")
+judge.load_model()
+
+result = judge.judge_with_confidence(
+    "What is the capital of France?",
+    "The capital of France is Paris."
+)
+
+print(f"Score: {result.score}/5")
+print(f"Confidence: {result.confidence:.2f}")
+```
+
+### Explainability Mode
+
+Get detailed score breakdowns:
+
+```python
+result = judge.judge_with_explanation(prompt, response)
+print(result.explanation)
+# Output: {'summary': '...', 'score_meaning': '...', 'criteria_analysis': [...]}
+```
+
+### Strict JSON Enforcement
+
+Retry logic ensures valid JSON output:
+
+```python
+result = judge.judge_strict(prompt, response)
+print(f"JSON Valid: {result.json_valid}")
+print(f"Retries: {result.retry_count}")
+```
+
+### Hackathon Demo
+
+```bash
+# Run demo with 5 test cases
+python -m src.demo.demo_run --adapter outputs/judge_sft_lora/final_adapter
+
+# Interactive mode
+python -m src.demo.demo_run --interactive
+
+# With confidence scores
+python -m src.demo.demo_run --with_confidence
+```
+
+### Official Evaluation
+
+```bash
+# Run full evaluation suite
+python -m src.eval.eval_official \
+    --adapter_path outputs/judge_sft_lora/final_adapter \
+    --gold_file data/gold_tests.jsonl \
+    --output_dir outputs/eval_results
+
+# Generates:
+# - outputs/eval_results/judge_final_report.json
+# - outputs/eval_results/judge_final_report.md
+```
+
+### Calibration Training
+
+Improve score accuracy on borderline cases:
+
+```bash
+# Generate calibration data
+python -m src.data.build_calibration_dataset
+
+# Run calibration training
+python -m src.training.sft_calibration_train \
+    --adapter outputs/judge_sft_lora/final_adapter \
+    --calibration data/calibration.jsonl \
+    --output outputs/judge_sft_lora_calibrated
+```
 
 ## License
 
