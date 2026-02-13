@@ -9,6 +9,8 @@ Usage:
         --valid_file data/valid.jsonl \
         --output_dir outputs/judge_sft_lora \
         --seed 42
+
+Note: train.jsonl contains oversampled flagged examples for better flag accuracy.
 """
 
 import argparse
@@ -566,7 +568,7 @@ def main():
     
     # Data
     parser.add_argument("--train_file", "--train", dest="train_file", type=str, default="data/train.jsonl",
-                        help="Path to training JSONL")
+                        help="Path to training JSONL (contains oversampled flag examples)")
     parser.add_argument("--valid_file", "--valid", dest="valid_file", type=str, default="data/valid.jsonl",
                         help="Path to validation JSONL")
     parser.add_argument("--output_dir", "--output", dest="output_dir", type=str, default="outputs/judge_sft_lora",
