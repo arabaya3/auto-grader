@@ -469,7 +469,8 @@ def train_judge_model(
             save_total_limit=2,
             load_best_model_at_end=True if eval_dataset else False,
             report_to="none",
-            fp16=True,
+            bf16=True,  # Use bf16 for better compatibility with modern models
+            fp16=False,
             gradient_checkpointing=True,
             optim="paged_adamw_8bit" if HAS_BNB else "adamw_torch",
             seed=config.seed,
@@ -505,7 +506,8 @@ def train_judge_model(
             save_total_limit=2,
             load_best_model_at_end=True if eval_dataset else False,
             report_to="none",
-            fp16=True,
+            bf16=True,  # Use bf16 for better compatibility with modern models
+            fp16=False,
             gradient_checkpointing=True,
             optim="paged_adamw_8bit" if HAS_BNB else "adamw_torch",
             seed=config.seed,
