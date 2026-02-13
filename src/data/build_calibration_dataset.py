@@ -330,11 +330,22 @@ def augment_example(example: dict, variation_idx: int) -> dict:
 
 
 def build_calibration_dataset(
-    output_path: Path,
+    output_path: Path = None,
     target_count: int = 150,
     seed: int = 42,
+    # Aliases for notebook compatibility
+    output_file: str = None,
+    num_examples: int = None,
 ) -> None:
     """Build the calibration dataset."""
+    # Handle aliases
+    if output_file is not None:
+        output_path = Path(output_file)
+    if num_examples is not None:
+        target_count = num_examples
+    if output_path is None:
+        output_path = Path("data/calibration.jsonl")
+    
     random.seed(seed)
     
     examples = []
