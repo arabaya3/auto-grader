@@ -63,6 +63,7 @@ logging.getLogger("transformers").setLevel(logging.WARNING)
 # Add parent to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.prompt_templates import JUDGE_SYSTEM_PROMPT
+from src.io_schema import parse_and_validate
 
 
 @dataclass
@@ -231,21 +232,10 @@ def generate_judgment(
     
     response = tokenizer.decode(outputs[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
     
-    # Parse JSON
-    parsed = None
-    try:
-        # Try direct parse
-        parsed = json.loads(response)
-    except json.JSONDecodeError:
-        # Try to extract JSON from text
-        json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response)
-        if json_match:
-            try:
-                parsed = json.loads(json_match.group())
-            except:
-                pass
+    # Parse and validate using official schema
+    parsed, is_valid, errors = parse_and_validate(response, strict=False)
     
-    return response, parsed
+    return response, parsed, is_valid
 
 
 def compute_flag_metrics(
@@ -316,7 +306,7 @@ def evaluate_gold_set(
     
     for i, example in enumerate(examples):
         prompt = build_prompt(example)
-        raw_response, parsed = generate_judgment(model, tokenizer, prompt, config)
+        raw_response, parsed, schema_valid = generate_judgment(model, tokenizer, prompt, config)
         
         label = example["label"]
         true_score = label["score"]
@@ -328,9 +318,11 @@ def evaluate_gold_set(
             "prompt_preview": example["prompt"][:100],
             "true_score": true_score,
             "raw_response": raw_response,
+            "schema_valid": schema_valid,
         }
         
-        if parsed:
+        # Only count as valid if it passes schema validation
+        if parsed and schema_valid:
             metrics.json_valid_count += 1
             pred_score = parsed.get("score")
             

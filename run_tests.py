@@ -70,6 +70,31 @@ print("Testing create_empty_output...", end=" ")
 t5.test_default_empty_output()
 print("PASS")
 
+# Test parse_and_validate helper
+print("Testing parse_and_validate...", end=" ")
+from src.io_schema import parse_and_validate
+
+# Test valid JSON
+valid_json = '{"score": 3, "reasoning": "test reason", "rubric_items": [], "flags": {"over_refusal": false, "prompt_injection_detected": false, "format_violation": false}}'
+parsed, valid, errors = parse_and_validate(valid_json)
+assert valid == True
+assert parsed["score"] == 3
+assert errors == []
+
+# Test with extra text
+wrapped = "Here is my evaluation: " + valid_json + " Thank you!"
+parsed, valid, errors = parse_and_validate(wrapped, strict=False)
+assert parsed is not None
+assert parsed["score"] == 3
+
+# Test invalid JSON
+parsed, valid, errors = parse_and_validate("not json at all")
+assert valid == False
+assert parsed is None
+assert len(errors) > 0
+
+print("PASS")
+
 print("\n" + "=" * 60)
 print("ALL TESTS PASSED!")
 print("=" * 60)

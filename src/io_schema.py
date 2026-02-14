@@ -282,3 +282,35 @@ def create_empty_output(score: int = 1, reasoning: str = "Unable to evaluate") -
             "format_violation": False,
         }
     }
+
+
+def parse_and_validate(raw_text: str, strict: bool = True) -> tuple[Optional[dict], bool, list[str]]:
+    """Parse raw model output and validate against schema.
+    
+    Shared helper for eval and demo scripts.
+    
+    Args:
+        raw_text: Raw model output that may contain JSON.
+        strict: If True, enforce all schema requirements.
+    
+    Returns:
+        Tuple of (parsed_dict, is_valid, errors)
+        - parsed_dict: Parsed JSON dict or None if extraction failed
+        - is_valid: True if output passes full schema validation  
+        - errors: List of validation error messages
+    """
+    # Extract JSON from text
+    json_str = extract_json_from_text(raw_text)
+    if json_str is None:
+        return None, False, ["No valid JSON object found in output"]
+    
+    # Parse JSON
+    try:
+        parsed = json.loads(json_str)
+    except json.JSONDecodeError as e:
+        return None, False, [f"JSON parse error: {e}"]
+    
+    # Validate against schema  
+    result = validate_judge_output(parsed, strict=strict)
+    
+    return parsed, result.is_valid, result.errors

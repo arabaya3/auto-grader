@@ -49,6 +49,7 @@ except ImportError:
 # Add parent to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.prompt_templates import JUDGE_SYSTEM_PROMPT
+from src.io_schema import parse_and_validate
 
 
 # Official flags (must match io_schema.py)
@@ -319,19 +320,10 @@ Provide your evaluation as JSON with: reasoning, score (1-5), and flags."""
             skip_special_tokens=True
         )
         
-        # Parse JSON
-        parsed = None
-        try:
-            parsed = json.loads(response)
-        except json.JSONDecodeError:
-            json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response)
-            if json_match:
-                try:
-                    parsed = json.loads(json_match.group())
-                except:
-                    pass
+        # Parse and validate using official schema
+        parsed, schema_valid, errors = parse_and_validate(response, strict=False)
         
-        return response, parsed
+        return response, parsed, schema_valid
     
     def compute_confidence(self, parsed: dict) -> float:
         """Compute confidence score (0-1) based on response quality."""
@@ -362,14 +354,15 @@ Provide your evaluation as JSON with: reasoning, score (1-5), and flags."""
     def run_demo_case(self, case: dict) -> dict:
         """Run a single demo case."""
         prompt = self.build_prompt(case)
-        raw_response, parsed = self.generate_judgment(prompt)
+        raw_response, parsed, schema_valid = self.generate_judgment(prompt)
         
         result = {
             "name": case["name"],
             "description": case["description"],
             "raw_response": raw_response,
             "parsed": parsed,
-            "json_valid": parsed is not None,
+            "json_valid": parsed is not None,  # Just parsed successfully
+            "schema_valid": schema_valid,       # Passes full schema validation
         }
         
         if parsed:
@@ -415,13 +408,14 @@ Provide your evaluation as JSON with: reasoning, score (1-5), and flags."""
             
             # Print result
             if result["json_valid"]:
+                schema_str = "Schema: OK" if result.get("schema_valid", False) else "Schema: FAIL"
                 score_str = f"Score: {result['score']}/5"
                 expected_range = result.get("expected_range", [1, 5])
                 score_in_range = result.get("score_in_range", False)
                 range_status = "OK" if score_in_range else "MISS"
                 score_str += f" (expected {expected_range[0]}-{expected_range[1]}: {range_status})"
                 
-                print(f"    {score_str}", end="")
+                print(f"    {schema_str} | {score_str}", end="")
                 if self.with_confidence:
                     print(f" | Confidence: {result['confidence']:.2f}", end="")
                 print()
@@ -447,17 +441,17 @@ Provide your evaluation as JSON with: reasoning, score (1-5), and flags."""
     
     def print_summary_table(self, results: list):
         """Print a clean summary table with expected vs actual."""
-        print(f"\n{'='*90}")
+        print(f"\n{'='*100}")
         print("DEMO RESULTS SUMMARY")
-        print(f"{'='*90}")
+        print(f"{'='*100}")
         
         # Header
-        header = "| Case                      | Score | Expected | Score OK | Flags OK |"
+        header = "| Case                      | Score | Expected | Score OK | Flags OK | Schema |"
         if self.with_confidence:
             header += " Conf   |"
         
         print(header)
-        sep = "|" + "-"*27 + "|" + "-"*7 + "|" + "-"*10 + "|" + "-"*10 + "|" + "-"*10 + "|"
+        sep = "|" + "-"*27 + "|" + "-"*7 + "|" + "-"*10 + "|" + "-"*10 + "|" + "-"*10 + "|" + "-"*8 + "|"
         if self.with_confidence:
             sep += "-"*8 + "|"
         print(sep)
@@ -476,7 +470,10 @@ Provide your evaluation as JSON with: reasoning, score (1-5), and flags."""
             flags_ok = "Yes" if r.get("flags_match", True) else "No"
             flags_ok = flags_ok.center(8)
             
-            row = f"| {name} | {score} | {expected_str} | {score_ok} | {flags_ok} |"
+            schema = "Yes" if r.get("schema_valid", False) else "No"
+            schema = schema.center(6)
+            
+            row = f"| {name} | {score} | {expected_str} | {score_ok} | {flags_ok} | {schema} |"
             
             if self.with_confidence:
                 conf = r.get("confidence", 0)
@@ -484,14 +481,16 @@ Provide your evaluation as JSON with: reasoning, score (1-5), and flags."""
             
             print(row)
         
-        print(f"{'='*90}")
+        print(f"{'='*100}")
         
         # Stats
         json_valid = sum(1 for r in results if r["json_valid"])
+        schema_valid = sum(1 for r in results if r.get("schema_valid", False))
         score_matches = sum(1 for r in results if r.get("score_in_range", False))
         flag_matches = sum(1 for r in results if r.get("flags_match", True))
         
-        print(f"\nJSON Validity:  {json_valid}/{len(results)} ({100*json_valid/len(results):.0f}%)")
+        print(f"\nJSON Parsed:    {json_valid}/{len(results)} ({100*json_valid/len(results):.0f}%)")
+        print(f"Schema Valid:   {schema_valid}/{len(results)} ({100*schema_valid/len(results):.0f}%)")
         print(f"Score Matches:  {score_matches}/{len(results)} ({100*score_matches/len(results):.0f}%)")
         print(f"Flag Matches:   {flag_matches}/{len(results)} ({100*flag_matches/len(results):.0f}%)")
         
