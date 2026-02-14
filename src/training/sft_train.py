@@ -453,6 +453,10 @@ def train_judge_model(
     import trl
     trl_version = tuple(int(x) for x in trl.__version__.split('.')[:2])
     
+    # Check bf16 support
+    use_bf16 = torch.cuda.is_available() and torch.cuda.is_bf16_supported()
+    use_fp16 = torch.cuda.is_available() and not use_bf16
+    
     if trl_version >= (0, 8):
         # New TRL API (0.8+) - use SFTConfig
         training_args = SFTConfig(
@@ -471,8 +475,8 @@ def train_judge_model(
             save_total_limit=2,
             load_best_model_at_end=True if eval_dataset else False,
             report_to="none",
-            bf16=True,  # Use bf16 for better compatibility with modern models
-            fp16=False,
+            bf16=use_bf16,
+            fp16=use_fp16,
             gradient_checkpointing=True,
             optim="paged_adamw_8bit" if HAS_BNB else "adamw_torch",
             seed=config.seed,
@@ -508,8 +512,8 @@ def train_judge_model(
             save_total_limit=2,
             load_best_model_at_end=True if eval_dataset else False,
             report_to="none",
-            bf16=True,  # Use bf16 for better compatibility with modern models
-            fp16=False,
+            bf16=use_bf16,
+            fp16=use_fp16,
             gradient_checkpointing=True,
             optim="paged_adamw_8bit" if HAS_BNB else "adamw_torch",
             seed=config.seed,
