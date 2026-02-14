@@ -590,24 +590,34 @@ def run_audit(data_dir: Path, out_dir: Path) -> int:
     print(f"Data directory: {data_dir}")
     print(f"Output directory: {out_dir}")
     
-    # Dataset files to audit
+    # Dataset files to audit (check both regular and _clean variants)
     dataset_files = [
         ("train", "train.jsonl"),
+        ("train", "train_clean.jsonl"),
         ("valid", "valid.jsonl"),
+        ("valid", "valid_clean.jsonl"),
         ("test", "test.jsonl"),
+        ("test", "test_clean.jsonl"),
         ("calibration", "calibration.jsonl"),
+        ("calibration", "calibration_clean.jsonl"),
         ("adversarial", "adversarial.jsonl"),
+        ("adversarial", "adversarial_clean.jsonl"),
         ("gold_tests", "gold_tests.jsonl"),
     ]
     
     audit = AuditReport()
     all_examples = []
     load_errors = []
+    loaded_splits: Set[str] = set()
     
     # Load and analyze each split
     print_header("LOADING DATASETS")
     
     for split_name, filename in dataset_files:
+        # Skip if we already loaded this split
+        if split_name in loaded_splits:
+            continue
+        
         filepath = data_dir / filename
         
         if not filepath.exists():
@@ -628,6 +638,7 @@ def run_audit(data_dir: Path, out_dir: Path) -> int:
             report = analyze_split(split_name, examples)
             audit.splits[split_name] = report
             all_examples.extend(examples)
+            loaded_splits.add(split_name)
     
     if not audit.splits:
         print("\n❌ No valid datasets found!")
