@@ -34,6 +34,7 @@ from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     TrainingArguments,
+    EarlyStoppingCallback,
 )
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 
@@ -99,6 +100,7 @@ class TrainingConfig:
     eval_steps: int = 50
     save_steps: int = 100
     logging_steps: int = 10
+    early_stopping_patience: int = 3  # Stop if no improvement for N evals
     
     # Quantization
     use_4bit: bool = True
@@ -511,6 +513,8 @@ def train_judge_model(
             eval_strategy="steps" if eval_dataset else "no",
             save_total_limit=2,
             load_best_model_at_end=True if eval_dataset else False,
+            metric_for_best_model="eval_loss" if eval_dataset else None,
+            greater_is_better=False if eval_dataset else None,
             report_to="none",
             bf16=use_bf16,
             fp16=use_fp16,
@@ -530,6 +534,7 @@ def train_judge_model(
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
             processing_class=tokenizer,
+            callbacks=[EarlyStoppingCallback(early_stopping_patience=config.early_stopping_patience)] if eval_dataset else None,
         )
     else:
         # Legacy TRL API
@@ -548,6 +553,8 @@ def train_judge_model(
             eval_strategy="steps" if eval_dataset else "no",
             save_total_limit=2,
             load_best_model_at_end=True if eval_dataset else False,
+            metric_for_best_model="eval_loss" if eval_dataset else None,
+            greater_is_better=False if eval_dataset else None,
             report_to="none",
             bf16=use_bf16,
             fp16=use_fp16,
@@ -567,6 +574,7 @@ def train_judge_model(
             dataset_text_field="text",
             max_seq_length=config.max_seq_length,
             packing=False,
+            callbacks=[EarlyStoppingCallback(early_stopping_patience=config.early_stopping_patience)] if eval_dataset else None,
         )
     
     # Train
