@@ -219,21 +219,58 @@ def build_varied_prompt(
 # Data Loading & Formatting
 # =============================================================================
 
+def patch_rubric_items_notes(example: dict[str, Any]) -> dict[str, Any]:
+    """Ensure all rubric_items have the notes field.
+    
+    Args:
+        example: Example dictionary
+    
+    Returns:
+        Patched example with notes added to rubric_items if missing
+    """
+    if "label" in example and "rubric_items" in example["label"]:
+        for item in example["label"]["rubric_items"]:
+            if isinstance(item, dict) and "notes" not in item:
+                # Generate a reasonable default note based on pass/fail
+                if item.get("pass", False):
+                    item["notes"] = "Criterion satisfied."
+                else:
+                    item["notes"] = "Criterion not met."
+            elif isinstance(item, dict) and not item.get("notes"):
+                # Handle empty notes
+                item["notes"] = "N/A"
+    return example
+
+
 def load_training_data(file_path: str) -> list[dict[str, Any]]:
-    """Load examples from JSONL file.
+    """Load examples from JSONL file and patch rubric_items notes.
     
     Args:
         file_path: Path to JSONL file
     
     Returns:
-        List of example dictionaries
+        List of example dictionaries with patched rubric_items
     """
     examples = []
+    patched_count = 0
     with open(file_path, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if line:
-                examples.append(json.loads(line))
+                ex = json.loads(line)
+                # Check if patching needed
+                needs_patch = False
+                if "label" in ex and "rubric_items" in ex["label"]:
+                    for item in ex["label"]["rubric_items"]:
+                        if isinstance(item, dict) and ("notes" not in item or not item.get("notes")):
+                            needs_patch = True
+                            break
+                if needs_patch:
+                    patched_count += 1
+                ex = patch_rubric_items_notes(ex)
+                examples.append(ex)
+    if patched_count > 0:
+        print(f"  Patched {patched_count} examples with missing rubric_items.notes")
     return examples
 
 

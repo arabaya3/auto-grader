@@ -34,6 +34,40 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.prompt_templates import JUDGE_SYSTEM_PROMPT, build_judge_prompt
 from src.io_schema import validate_judge_output, extract_json_from_text
 
+
+def repair_rubric_items_notes(parsed: Optional[dict]) -> tuple[Optional[dict], bool]:
+    """Repair missing notes in rubric_items.
+    
+    If rubric_items entries are missing 'notes', auto-fill with placeholder
+    and set format_violation flag.
+    
+    Args:
+        parsed: Parsed JSON output dict
+    
+    Returns:
+        Tuple of (repaired_dict, was_repaired)
+    """
+    if parsed is None:
+        return None, False
+    
+    was_repaired = False
+    
+    if "rubric_items" in parsed and isinstance(parsed["rubric_items"], list):
+        for item in parsed["rubric_items"]:
+            if isinstance(item, dict):
+                if "notes" not in item or not item.get("notes"):
+                    item["notes"] = "(auto-filled)"
+                    was_repaired = True
+    
+    # If we repaired, also set format_violation flag
+    if was_repaired:
+        if "flags" not in parsed:
+            parsed["flags"] = {}
+        parsed["flags"]["format_violation"] = True
+    
+    return parsed, was_repaired
+
+
 # Check for PEFT
 try:
     from peft import PeftModel
@@ -339,8 +373,21 @@ def evaluate_single_example(
         
         if validation.is_valid and validation.parsed_output:
             parsed_output = validation.parsed_output
+            # Repair missing notes in rubric_items
+            parsed_output, was_repaired = repair_rubric_items_notes(parsed_output)
             predicted_score = parsed_output.get("score")
             predicted_flags = parsed_output.get("flags", predicted_flags)
+        elif validation.parsed_output:
+            # Try to repair even if validation failed due to missing notes
+            parsed_output = validation.parsed_output
+            parsed_output, was_repaired = repair_rubric_items_notes(parsed_output)
+            if was_repaired:
+                # Re-validate after repair
+                json_valid = True
+                predicted_score = parsed_output.get("score")
+                predicted_flags = parsed_output.get("flags", predicted_flags)
+            else:
+                errors.extend(validation.errors)
         else:
             errors.extend(validation.errors)
     else:

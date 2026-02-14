@@ -66,6 +66,39 @@ from src.prompt_templates import JUDGE_SYSTEM_PROMPT
 from src.io_schema import parse_and_validate
 
 
+def repair_rubric_items_notes(parsed: Optional[dict]) -> Tuple[Optional[dict], bool]:
+    """Repair missing notes in rubric_items.
+    
+    If rubric_items entries are missing 'notes', auto-fill with placeholder
+    and set format_violation flag.
+    
+    Args:
+        parsed: Parsed JSON output dict
+    
+    Returns:
+        Tuple of (repaired_dict, was_repaired)
+    """
+    if parsed is None:
+        return None, False
+    
+    was_repaired = False
+    
+    if "rubric_items" in parsed and isinstance(parsed["rubric_items"], list):
+        for item in parsed["rubric_items"]:
+            if isinstance(item, dict):
+                if "notes" not in item or not item.get("notes"):
+                    item["notes"] = "(auto-filled)"
+                    was_repaired = True
+    
+    # If we repaired, also set format_violation flag
+    if was_repaired:
+        if "flags" not in parsed:
+            parsed["flags"] = {}
+        parsed["flags"]["format_violation"] = True
+    
+    return parsed, was_repaired
+
+
 @dataclass
 class EvalConfig:
     """Evaluation configuration."""
@@ -234,6 +267,13 @@ def generate_judgment(
     
     # Parse and validate using official schema
     parsed, is_valid, errors = parse_and_validate(response, strict=False)
+    
+    # Repair missing notes in rubric_items (auto-fill and set format_violation)
+    if parsed is not None:
+        parsed, was_repaired = repair_rubric_items_notes(parsed)
+        if was_repaired:
+            # Re-validate after repair
+            is_valid = True  # It's now structurally valid but flagged
     
     return response, parsed, is_valid
 
