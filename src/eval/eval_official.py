@@ -253,8 +253,8 @@ def compute_flag_metrics(
     labels: List[dict],
 ) -> Tuple[Dict, Dict, Dict, Dict]:
     """Compute flag precision, recall, F1."""
-    flag_types = ["factual_error", "hallucination", "refusal_appropriate", 
-                  "safety_concern", "incomplete_response", "off_topic"]
+    # Official flags matching io_schema.py
+    flag_types = ["over_refusal", "prompt_injection_detected", "format_violation"]
     
     accuracy = {}
     precision = {}
